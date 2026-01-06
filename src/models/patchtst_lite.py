@@ -4,6 +4,10 @@ from .base import ForecastModel
 
 
 class PatchTSTLite(ForecastModel):
+    """
+    Lightweight PatchTST-style forecaster
+    """
+
     def __init__(
         self,
         context_length: int,
@@ -15,13 +19,19 @@ class PatchTSTLite(ForecastModel):
         dropout: float = 0.1,
     ):
         super().__init__(context_length, horizon)
+
         self.patch_len = patch_len
-        n_patches = (context_length + patch_len - 1) // patch_len
-        self.n_patches = n_patches
+        self.n_patches = (context_length + patch_len - 1) // patch_len
 
         self.proj = nn.Linear(patch_len, d_model)
-        enc_layer = nn.TransformerEncoderLayer(d_model=d_model, nhead=nhead, dropout=dropout, batch_first=True)
-        self.enc = nn.TransformerEncoder(enc_layer, num_layers=nlayers)
+
+        enc_layer = nn.TransformerEncoderLayer(
+            d_model=d_model,
+            nhead=nhead,
+            dropout=dropout,
+            batch_first=True,
+        )
+        self.encoder = nn.TransformerEncoder(enc_layer, nlayers)
 
         self.head = nn.Sequential(
             nn.LayerNorm(d_model),
@@ -32,11 +42,14 @@ class PatchTSTLite(ForecastModel):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         B, L = x.shape
+
         pad = self.n_patches * self.patch_len - L
         if pad > 0:
-            x = torch.nn.functional.pad(x, (0, pad), mode="constant", value=0.0)
+            x = torch.nn.functional.pad(x, (0, pad), value=0.0)
+
         x = x.view(B, self.n_patches, self.patch_len)
         z = self.proj(x)
-        z = self.enc(z)
-        pooled = z.mean(dim=1)
-        return self.head(pooled)
+        z = self.encoder(z)
+        z = z.mean(dim=1)
+
+        return self.head(z)

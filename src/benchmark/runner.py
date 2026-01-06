@@ -6,6 +6,7 @@ from src.utils.metrics import METRIC_FUNCS, mase
 from src.data.generic import load_generic_csv
 from src.data.windows import make_windows
 from src.models.dlinear import DLinear
+from src.models.patchtst_lite import PatchTSTLite
 from src.train.trainer import train_torch
 from src.perturb.artifacts import missing_mcar, outlier_spike
 
@@ -15,18 +16,31 @@ def run_benchmark(
     id_col: str,
     time_col: str,
     target_col: str,
+    model_name: str = "dlinear",
     context_length: int = 24,
     horizon: int = 12,
     epochs: int = 5,
     batch_size: int = 256,
     seed: int = 42,
 ):
-    set_seed(seed)
+    """
+    Artifact-aware benchmarking for demand forecasting models.
+    """
 
-    # Load data
+    # --------------------------------------------------
+    # 1) Setup
+    # --------------------------------------------------
+    set_seed(seed)
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+
+    # --------------------------------------------------
+    # 2) Load data
+    # --------------------------------------------------
     df = load_generic_csv(csv_path, id_col, time_col, target_col)
 
-    # Windowing
+    # --------------------------------------------------
+    # 3) Windowing
+    # --------------------------------------------------
     windows = make_windows(
         df,
         context=context_length,
@@ -42,41 +56,62 @@ def run_benchmark(
 
     insample = np.concatenate(list(windows["insample"].values()))
 
-    # Train model
-    model = DLinear(context_length, horizon)
+    # --------------------------------------------------
+    # 4) Model selection
+    # --------------------------------------------------
+    if model_name == "dlinear":
+        model = DLinear(context_length, horizon)
+    elif model_name == "patchtst":
+        model = PatchTSTLite(context_length, horizon)
+    else:
+        raise ValueError(f"Unknown model_name: {model_name}")
+
+    # --------------------------------------------------
+    # 5) Train
+    # --------------------------------------------------
     model = train_torch(
-        model,
-        X_train,
-        y_train,
-        None,
-        None,
+        model=model,
+        X_train=X_train,
+        y_train=y_train,
+        X_val=None,
+        y_val=None,
         epochs=epochs,
         batch_size=batch_size,
         lr=1e-3,
+        device="auto",
     )
 
     model.eval()
-    results = []
-    rng = np.random.default_rng(seed)
 
-    def eval_case(name, X):
+    # --------------------------------------------------
+    # 6) Evaluation helper
+    # --------------------------------------------------
+    def evaluate_case(name: str, X: np.ndarray):
         with torch.no_grad():
-            preds = model(torch.from_numpy(X).float()).numpy()
+            preds = model(
+                torch.from_numpy(X).float().to(device)
+            ).cpu().numpy()
+
         row = {"perturbation": name}
         for m, fn in METRIC_FUNCS.items():
             row[m] = fn(y_test.flatten(), preds.flatten())
-        row["mase"] = mase(y_test.flatten(), preds.flatten(), insample)
+        row["mase"] = mase(
+            y_test.flatten(), preds.flatten(), insample
+        )
         return row
 
-    # Clean
-    results.append(eval_case("clean", X_test))
+    # --------------------------------------------------
+    # 7) Run benchmark
+    # --------------------------------------------------
+    rng = np.random.default_rng(seed)
+    results = []
 
-    # Missing
-    Xm = missing_mcar(X_test, 0.1, rng)
-    results.append(eval_case("missing_mcar", Xm))
+    results.append(evaluate_case("clean", X_test))
 
-    # Outliers
-    Xo = outlier_spike(X_test, 0.05, rng)
-    results.append(eval_case("outlier_spike", Xo))
+    Xm = missing_mcar(X_test, rate=0.1, rng=rng)
+    results.append(evaluate_case("missing_mcar", Xm))
+
+    Xo = outlier_spike(X_test, rate=0.05, rng=rng)
+    results.append(evaluate_case("outlier_spike", Xo))
 
     return results
