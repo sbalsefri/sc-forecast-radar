@@ -12,16 +12,12 @@ class DLinear(ForecastModel):
 
     def moving_avg(self, x):
         pad = self.kernel // 2
-        xpad = torch.nn.functional.pad(
-            x.unsqueeze(1), (pad, pad), mode="replicate"
-        ).squeeze(1)
+        xpad = torch.nn.functional.pad(x.unsqueeze(1), (pad, pad), mode="replicate").squeeze(1)
         w = torch.ones(1, 1, self.kernel, device=x.device) / self.kernel
-        ma = torch.nn.functional.conv1d(
-            xpad.unsqueeze(1), w, padding=0
-        ).squeeze(1)
+        ma = torch.nn.functional.conv1d(xpad.unsqueeze(1), w, padding=0).squeeze(1)
         return ma
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         trend = self.moving_avg(x)
-        seasonal = x - trend
-        return self.lin_trend(trend) + self.lin_seas(seasonal)
+        seas = x - trend
+        return self.lin_trend(trend) + self.lin_seas(seas)

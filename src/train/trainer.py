@@ -19,8 +19,10 @@ def train_torch(
         device = "cuda" if torch.cuda.is_available() else "cpu"
 
     model = model.to(device)
+
     ds = TensorDataset(
-        torch.from_numpy(X_train), torch.from_numpy(y_train)
+        torch.from_numpy(X_train).float(),
+        torch.from_numpy(y_train).float(),
     )
     dl = DataLoader(ds, batch_size=batch_size, shuffle=True)
 

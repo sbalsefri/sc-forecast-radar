@@ -1,0 +1,40 @@
+run_name: m5_small_lite
+seed: 42
+
+dataset:
+  name: m5
+  processed_dir: data/processed/m5_small
+
+split:
+  context_length: 56
+  horizon: 28
+  val_windows: 1
+  test_windows: 1
+
+train:
+  batch_size: 256
+  epochs: 8
+  lr: 0.001
+  weight_decay: 0.0
+  device: auto
+  grad_clip: 1.0
+
+model:
+  name: dlinear
+  kernel: 7
+
+benchmark:
+  metrics: [rmse, mae, smape, mape, mase]
+  perturbations:
+    - name: missing_mcar
+      severity: [0.0, 0.05, 0.10, 0.20]
+    - name: missing_block
+      severity: [0.0, 0.05, 0.10, 0.20]
+    - name: outliers_spike
+      severity: [0.0, 0.02, 0.05, 0.10]
+    - name: delayed_reporting
+      severity: [0.0, 1, 3, 7]
+    - name: stockout_censor
+      severity: [0.0, 0.05, 0.10, 0.20]
+    - name: logical_negative
+      severity: [0.0, 0.01, 0.02, 0.05]

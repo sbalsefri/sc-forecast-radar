@@ -2,13 +2,7 @@ import numpy as np
 import pandas as pd
 
 
-def make_windows(
-    df: pd.DataFrame,
-    context: int,
-    horizon: int,
-    val_windows: int = 1,
-    test_windows: int = 1,
-):
+def make_windows(df: pd.DataFrame, context: int, horizon: int, val_windows: int = 1, test_windows: int = 1):
     series = []
     for sid, g in df.groupby("series_id"):
         g = g.sort_values("t")
@@ -36,7 +30,7 @@ def make_windows(
             Xtr.append(y[i - context : i])
             ytr.append(y[i : i + horizon])
 
-        if not Xtr:
+        if len(Xtr) == 0:
             continue
 
         Xv, yv, Xt, yt = [], [], [], []
@@ -51,46 +45,22 @@ def make_windows(
                 yt.append(target)
 
         series.append(
-            (
-                sid,
-                y,
-                np.stack(Xtr),
-                np.stack(ytr),
-                np.stack(Xv) if Xv else None,
-                np.stack(yv) if yv else None,
-                np.stack(Xt),
-                np.stack(yt),
-            )
+            (sid, y, np.stack(Xtr), np.stack(ytr),
+             np.stack(Xv) if len(Xv) else None,
+             np.stack(yv) if len(yv) else None,
+             np.stack(Xt), np.stack(yt))
         )
 
     if not series:
-        raise RuntimeError("No series long enough for windowing")
+        raise RuntimeError("No series had enough length for windowing.")
 
-    X_train = np.concatenate([s[2] for s in series])
-    y_train = np.concatenate([s[3] for s in series])
-
-    X_val = (
-        np.concatenate([s[4] for s in series if s[4] is not None])
-        if any(s[4] is not None for s in series)
-        else None
-    )
-    y_val = (
-        np.concatenate([s[5] for s in series if s[5] is not None])
-        if any(s[5] is not None for s in series)
-        else None
-    )
-
-    X_test = np.concatenate([s[6] for s in series])
-    y_test = np.concatenate([s[7] for s in series])
-
+    X_train = np.concatenate([s[2] for s in series], axis=0)
+    y_train = np.concatenate([s[3] for s in series], axis=0)
+    X_val = np.concatenate([s[4] for s in series if s[4] is not None], axis=0) if any(s[4] is not None for s in series) else None
+    y_val = np.concatenate([s[5] for s in series if s[5] is not None], axis=0) if any(s[5] is not None for s in series) else None
+    X_test = np.concatenate([s[6] for s in series], axis=0)
+    y_test = np.concatenate([s[7] for s in series], axis=0)
     insample = {sid: y for sid, y, *_ in series}
 
-    return {
-        "X_train": X_train,
-        "y_train": y_train,
-        "X_val": X_val,
-        "y_val": y_val,
-        "X_test": X_test,
-        "y_test": y_test,
-        "insample": insample,
-    }
+    return {"X_train": X_train, "y_train": y_train, "X_val": X_val, "y_val": y_val, "X_test": X_test, "y_test": y_test, "insample": insample}
+

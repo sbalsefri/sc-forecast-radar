@@ -15,7 +15,7 @@ def mae(y_true, y_pred):
 
 def smape(y_true, y_pred):
     y_true, y_pred = np.asarray(y_true), np.asarray(y_pred)
-    denom = np.abs(y_true) + np.abs(y_pred) + EPS
+    denom = (np.abs(y_true) + np.abs(y_pred) + EPS)
     return float(np.mean(2.0 * np.abs(y_pred - y_true) / denom))
 
 
@@ -28,9 +28,7 @@ def mape(y_true, y_pred):
 
 
 def mase(y_true, y_pred, y_insample, seasonality=1):
-    y_true = np.asarray(y_true)
-    y_pred = np.asarray(y_pred)
-    y_insample = np.asarray(y_insample)
+    y_true, y_pred, y_insample = map(np.asarray, (y_true, y_pred, y_insample))
     if len(y_insample) <= seasonality:
         return float("nan")
     naive = np.mean(np.abs(y_insample[seasonality:] - y_insample[:-seasonality])) + EPS
