@@ -1,0 +1,24 @@
+# --- Python environment ---
+__pycache__/
+*.py[cod]
+.venv/
+env/
+
+# --- Data (Keep the folder structure, ignore the files) ---
+data/raw/*
+data/processed/*
+!data/**/.gitkeep
+
+# --- Model Weights & Outputs ---
+runs/
+models/*.pth
+models/*.h5
+*.ckpt
+
+# --- Notebooks & OS ---
+.ipynb_checkpoints
+.DS_Store
+Thumbs.db
+
+# --- Config overrides ---
+configs/local_override.yaml
